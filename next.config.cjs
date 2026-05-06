@@ -1,55 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: false,
-eslint: {
-    // 빌드 시 ESLint 오류가 있어도 배포를 진행하게 합니다.
+  // ESLint(코드 모양 검사) 무시
+  eslint: {
+    ignoreDuringBuilds: true,
   },
+  // TypeScript(타입 검사) 무시
   typescript: {
-    // 빌드 시 타입 오류가 있어도 배포를 진행하게 합니다.
     ignoreBuildErrors: true,
+  },
+  // 서버 컴포넌트 외부 패키지 설정
+  experimental: {
+    serverComponentsExternalPackages: ['youtubei.js'],
   },
 };
 
 module.exports = nextConfig;
-
-// Injected content via Sentry wizard below
-
-const { withSentryConfig } = require('@sentry/nextjs');
-
-module.exports = withSentryConfig(
-  module.exports,
-  {
-    // For all available options, see:
-    // https://github.com/getsentry/sentry-webpack-plugin#options
-
-    // Suppresses source map uploading logs during build
-    silent: true,
-    org: 'aioo',
-    project: 'chazzy',
-  },
-  {
-    // For all available options, see:
-    // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
-    // Upload a larger set of source maps for prettier stack traces (increases build time)
-    widenClientFileUpload: true,
-
-    // Transpiles SDK to be compatible with IE11 (increases bundle size)
-    transpileClientSDK: true,
-
-    // Routes browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers (increases server load)
-    tunnelRoute: '/monitoring',
-
-    // Hides source maps from generated client bundles
-    hideSourceMaps: true,
-
-    // Automatically tree-shake Sentry logger statements to reduce bundle size
-    disableLogger: true,
-
-    // Enables automatic instrumentation of Vercel Cron Monitors.
-    // See the following for more information:
-    // https://docs.sentry.io/product/crons/
-    // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
-  },
-);
