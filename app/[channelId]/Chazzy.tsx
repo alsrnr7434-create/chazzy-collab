@@ -1,19 +1,11 @@
 'use client';
 
 import { CSSProperties, ReactElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import useAfreecatvStation from '../afreecatv/useStation';
-import useAfreecatvChatList from '../afreecatv/useChatList';
-import useAfreecatvChannel from '../afreecatv/useChannel';
 import { Chat, ClearMessage } from '../chat/types';
 import useMergedList from '../chat/useMergedList';
 import useChzzkChatList from '../chzzk/useChatList';
 import useChzzkChannel from '../chzzk/useChannel';
 import useLiveStatus from '../chzzk/useLiveStatus';
-import useTwitchChatList from '../twitch/useChatList';
-import useTwitchUser from '../twitch/useUser';
-import useStream from '../twitch/useStream';
-import useYoutubeChatList from '../youtube/useChatList';
-import useYoutubeVideoInfo from '../youtube/useVideoInfo';
 import ChatRow from './ChatRow';
 import ChazzyMenu from './ChazzyMenu';
 import CheeseChatRow from './CheeseChatRow';
@@ -22,14 +14,13 @@ import Status from './Status';
 import './styles.css';
 
 export interface ChazzyProps {
-  afreecatvChannelId: string | undefined;
-  chzzkChannelId: string | undefined;
-  twitchChannelId: string | undefined;
-  youtubeVideoId: string | undefined;
+  // 이제 단일 ID가 아니라 치지직 ID 배열을 받습니다.
+  chzzkChannelIds: string[];
 }
 
 export default function Chazzy(props: ChazzyProps): ReactElement {
-  const { afreecatvChannelId, chzzkChannelId, twitchChannelId, youtubeVideoId } = props;
+  // 전달받은 3명의 치지직 ID를 분리합니다.
+  const [id1, id2, id3] = props.chzzkChannelIds;
 
   const isChatAutoScrollEnabledRef = useRef<boolean>(true);
   const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -37,129 +28,68 @@ export default function Chazzy(props: ChazzyProps): ReactElement {
   const cheeseChatScrollRef = useRef<HTMLDivElement>(null);
   const [cheeseChatStyle, setCheeseChatStyle] = useState<CSSProperties>(undefined);
 
-  const { channel: chzzkChannel } = useChzzkChannel(chzzkChannelId);
-  const { liveStatus: chzzkLiveStatus } = useLiveStatus(chzzkChannelId);
+  // --- [스트리머 1] 연결 ---
+  const { channel: channel1 } = useChzzkChannel(id1);
+  const { liveStatus: live1 } = useLiveStatus(id1);
 
-  const { user: twitchUser } = useTwitchUser(twitchChannelId);
-  const { stream: twitchStream } = useStream(twitchUser?.id);
+  // --- [스트리머 2] 연결 ---
+  const { channel: channel2 } = useChzzkChannel(id2);
+  const { liveStatus: live2 } = useLiveStatus(id2);
 
-  const { station: afreecatvStation } = useAfreecatvStation(afreecatvChannelId);
-  const { channel: afreecatvChannel } = useAfreecatvChannel(
-    afreecatvChannelId,
-    afreecatvStation?.broad != null ? `${afreecatvStation?.broad.broad_no}` : undefined,
-  );
+  // --- [스트리머 3] 연결 ---
+  const { channel: channel3 } = useChzzkChannel(id3);
+  const { liveStatus: live3 } = useLiveStatus(id3);
 
-  const { videoInfo: youtubeVideoInfo } = useYoutubeVideoInfo(youtubeVideoId);
-
+  // 클린봇 메세지 삭제 처리 로직 (3명 통합)
   const handleClearChzzkMessage = useCallback((clearMessage: ClearMessage) => {
     setChatList((prevChatList) => {
       const findFn = ({ userId }: Chat) =>
         clearMessage.type === 'message'
           ? clearMessage.method.type === 'chzzk' && clearMessage.method.userId === userId
           : false;
-      const lastIndexOnPendingChatList = pendingChzzkChatListRef.current.findLastIndex(findFn);
-      const lastChatOnPendingChatList = pendingChzzkChatListRef.current[lastIndexOnPendingChatList];
+      
       const lastIndexOnChatList = prevChatList.findLastIndex(findFn);
-      const lastChatOnChatList = prevChatList[lastIndexOnChatList];
-      const newChatList = [...prevChatList];
-      if (lastChatOnPendingChatList == null && lastChatOnChatList != null) {
+      if (lastIndexOnChatList !== -1) {
+        const newChatList = [...prevChatList];
         newChatList.splice(lastIndexOnChatList, 1, {
-          ...lastChatOnChatList,
+          ...prevChatList[lastIndexOnChatList],
           deletionReason: '클린봇이 부적절한 표현을 감지했습니다.',
         });
         return newChatList;
-      } else if (lastChatOnPendingChatList != null && lastChatOnChatList == null) {
-        pendingChzzkChatListRef.current.splice(lastIndexOnPendingChatList, 1, {
-          ...lastChatOnPendingChatList,
-          deletionReason: '클린봇이 부적절한 표현을 감지했습니다.',
-        });
-        return prevChatList;
-      } else if (lastChatOnPendingChatList != null && lastChatOnChatList != null) {
-        if (lastChatOnChatList.time > lastChatOnPendingChatList.time) {
-          newChatList.splice(lastIndexOnChatList, 1, {
-            ...lastChatOnChatList,
-            deletionReason: '클린봇이 부적절한 표현을 감지했습니다.',
-          });
-          return newChatList;
-        } else {
-          pendingChzzkChatListRef.current.splice(lastIndexOnPendingChatList, 1, {
-            ...lastChatOnPendingChatList,
-            deletionReason: '클린봇이 부적절한 표현을 감지했습니다.',
-          });
-          return prevChatList;
-        }
       }
       return prevChatList;
     });
   }, []);
 
-  const handleClearTwitchMessage = useCallback((clearMessage: ClearMessage) => {
-    const findFn = ({ uid, userId }: Chat) =>
-      clearMessage.type === 'message'
-        ? clearMessage.method.type === 'twitch' && clearMessage.method.uid === uid
-        : clearMessage.userId === userId;
-    setChatList((prevChatList) => {
-      let isChanged = false;
-      const newChatList = prevChatList.map((chat): Chat => {
-        if (findFn(chat)) {
-          isChanged = true;
-          return {
-            ...chat,
-            isItalic: true,
-            deletionReason: '매니저에 의해 메시지가 삭제됨',
-          };
-        }
-        return chat;
-      });
-      return isChanged ? newChatList : prevChatList;
-    });
-    pendingTwitchChatListRef.current = pendingTwitchChatListRef.current.map((chat) =>
-      findFn(chat)
-        ? {
-            ...chat,
-            isItalic: true,
-            deletionReason: '매니저에 의해 메시지가 삭제됨',
-          }
-        : chat,
-    );
-  }, []);
+  // --- 채팅 목록 불러오기 (3명 각각) ---
+  const { pendingChatListRef: pendingChat1, pendingCheeseChatListRef: pendingCheese1 } = useChzzkChatList(live1?.chatChannelId, handleClearChzzkMessage);
+  const { pendingChatListRef: pendingChat2, pendingCheeseChatListRef: pendingCheese2 } = useChzzkChatList(live2?.chatChannelId, handleClearChzzkMessage);
+  const { pendingChatListRef: pendingChat3, pendingCheeseChatListRef: pendingCheese3 } = useChzzkChatList(live3?.chatChannelId, handleClearChzzkMessage);
 
-  const { pendingChatListRef: pendingAfreecatvChatListRef } = useAfreecatvChatList(afreecatvChannel);
-  const { pendingChatListRef: pendingChzzkChatListRef, pendingCheeseChatListRef } = useChzzkChatList(
-    chzzkLiveStatus?.chatChannelId,
-    handleClearChzzkMessage,
-  );
-  const { pendingChatListRef: pendingTwitchChatListRef } = useTwitchChatList(
-    twitchChannelId,
-    twitchUser?.id,
-    handleClearTwitchMessage,
-  );
-  const {
-    pendingChatListRef: pendingYoutubeChatListRef,
-    pendingCheeseChatListRef: pendingYoutubeSuperChatListRef,
-    viewerCount: youtubeViewerCount,
-  } = useYoutubeChatList(youtubeVideoId);
-
+  // 3명의 채팅을 하나로 모으기 위한 리스트
   const pendingChatListRefs = useMemo(
-    () => [pendingAfreecatvChatListRef, pendingChzzkChatListRef, pendingTwitchChatListRef, pendingYoutubeChatListRef],
-    [pendingAfreecatvChatListRef, pendingChzzkChatListRef, pendingTwitchChatListRef, pendingYoutubeChatListRef],
+    () => [pendingChat1, pendingChat2, pendingChat3],
+    [pendingChat1, pendingChat2, pendingChat3],
   );
 
   const pendingCheeseChatListRefs = useMemo(
-    () => [pendingCheeseChatListRef, pendingYoutubeSuperChatListRef],
-    [pendingCheeseChatListRef, pendingYoutubeSuperChatListRef],
+    () => [pendingCheese1, pendingCheese2, pendingCheese3],
+    [pendingCheese1, pendingCheese2, pendingCheese3],
   );
 
+  // 최종 통합된 일반 채팅 리스트
   const { list: chatList, setList: setChatList } = useMergedList({
     pendingListRefs: pendingChatListRefs,
     maxLength: 1000,
   });
 
+  // 최종 통합된 후원(치즈) 채팅 리스트
   const { list: cheeseChatList } = useMergedList({
     pendingListRefs: pendingCheeseChatListRefs,
     maxLength: 10,
   });
 
+  // 스크롤 관련 로직
   useEffect(() => {
     if (isChatAutoScrollEnabledRef.current && endOfChatScrollRef.current != null) {
       endOfChatScrollRef.current.scrollIntoView();
@@ -213,79 +143,65 @@ export default function Chazzy(props: ChazzyProps): ReactElement {
           {chatList.map((chat) => chat && <ChatRow key={chat.uid} {...chat} />)}
           <div ref={endOfChatScrollRef} />
         </div>
-        {chzzkChannelId != null && (
-          <div
-            id="cheese-chat-list-container"
-            ref={(ref) => {
-              if (ref == null) return;
-              if (cheeseChatScrollRef.current != null) {
-                cheeseChatScrollRef.current.removeEventListener('scroll', handleCheeseChatScroll);
-              }
-              ref.addEventListener('scroll', handleCheeseChatScroll);
-              cheeseChatScrollRef.current = ref;
-            }}
-            style={cheeseChatStyle}
-          >
-            {arrangedCheeseChatList.length === 0 ? (
-              <EmptyCheeseChatRow />
-            ) : (
-              arrangedCheeseChatList.map((cheeseChat) => <CheeseChatRow key={cheeseChat.uid} {...cheeseChat} />)
-            )}
-          </div>
-        )}
+        
+        {/* 후원(치즈) 채팅창 영역 */}
+        <div
+          id="cheese-chat-list-container"
+          ref={(ref) => {
+            if (ref == null) return;
+            if (cheeseChatScrollRef.current != null) {
+              cheeseChatScrollRef.current.removeEventListener('scroll', handleCheeseChatScroll);
+            }
+            ref.addEventListener('scroll', handleCheeseChatScroll);
+            cheeseChatScrollRef.current = ref;
+          }}
+          style={cheeseChatStyle}
+        >
+          {arrangedCheeseChatList.length === 0 ? (
+            <EmptyCheeseChatRow />
+          ) : (
+            arrangedCheeseChatList.map((cheeseChat) => <CheeseChatRow key={cheeseChat.uid} {...cheeseChat} />)
+          )}
+        </div>
       </div>
+      
+      {/* 우측 상단 방송 상태 아이콘 표시 영역 */}
       <div id="status-container">
-        {chzzkChannelId != null && chzzkChannel != null && (
+        {id1 != null && channel1 != null && (
           <>
             <Status
               provider="chzzk"
-              channelName={chzzkChannel.channelName}
-              channelImageUrl={
-                chzzkChannel.channelImageUrl ??
-                'https://ssl.pstatic.net/cmstatic/nng/img/img_anonymous_square_gray_opacity2x.png?type=f120_120_na'
-              }
-              concurrentUserCount={chzzkLiveStatus?.concurrentUserCount}
-              liveCategoryValue={chzzkLiveStatus?.liveCategoryValue}
-              isLive={chzzkLiveStatus?.status === 'OPEN'}
+              channelName={channel1.channelName}
+              channelImageUrl={channel1.channelImageUrl ?? 'https://ssl.pstatic.net/cmstatic/nng/img/img_anonymous_square_gray_opacity2x.png?type=f120_120_na'}
+              concurrentUserCount={live1?.concurrentUserCount}
+              liveCategoryValue={live1?.liveCategoryValue}
+              isLive={live1?.status === 'OPEN'}
             />
             <div className="divider" />
           </>
         )}
-        {twitchChannelId != null && twitchUser != null && (
+        {id2 != null && channel2 != null && (
           <>
             <Status
-              provider="twitch"
-              channelName={twitchUser.display_name}
-              channelImageUrl={twitchUser.profile_image_url}
-              concurrentUserCount={twitchStream?.viewer_count}
-              liveCategoryValue={twitchStream?.game_name}
-              isLive={twitchStream != null}
+              provider="chzzk"
+              channelName={channel2.channelName}
+              channelImageUrl={channel2.channelImageUrl ?? 'https://ssl.pstatic.net/cmstatic/nng/img/img_anonymous_square_gray_opacity2x.png?type=f120_120_na'}
+              concurrentUserCount={live2?.concurrentUserCount}
+              liveCategoryValue={live2?.liveCategoryValue}
+              isLive={live2?.status === 'OPEN'}
             />
             <div className="divider" />
           </>
         )}
-        {afreecatvChannelId != null && afreecatvStation != null && (
+        {id3 != null && channel3 != null && (
           <>
             <Status
-              provider="afreecatv"
-              channelName={afreecatvStation.station.user_nick}
-              channelImageUrl={afreecatvStation.profile_image}
-              concurrentUserCount={afreecatvStation.broad?.current_sum_viewer}
-              liveCategoryValue={afreecatvStation.broad?.broad_title}
-              isLive={afreecatvStation.broad != null}
-            />
-            <div className="divider" />
-          </>
-        )}
-        {youtubeVideoId != null && youtubeVideoInfo != null && (
-          <>
-            <Status
-              provider="youtube"
-              channelName={youtubeVideoInfo.channelName}
-              channelImageUrl={youtubeVideoInfo.thumbnailUrl}
-              concurrentUserCount={youtubeViewerCount ?? youtubeVideoInfo.viewerCount}
-              liveCategoryValue={youtubeVideoInfo.title}
-              isLive={youtubeVideoInfo.isLive}
+              provider="chzzk"
+              channelName={channel3.channelName}
+              channelImageUrl={channel3.channelImageUrl ?? 'https://ssl.pstatic.net/cmstatic/nng/img/img_anonymous_square_gray_opacity2x.png?type=f120_120_na'}
+              concurrentUserCount={live3?.concurrentUserCount}
+              liveCategoryValue={live3?.liveCategoryValue}
+              isLive={live3?.status === 'OPEN'}
             />
             <div className="divider" />
           </>
