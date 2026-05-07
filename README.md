@@ -1,194 +1,25 @@
-# Chazzy
+# 합방용 통합채팅 Chazzy(only 치지직)
+안녕하세요. 저는 치지직에서 방송하고 있는 김금치입니다.
+합방할 때 통합채팅을 이용하고 싶은데 관련서비스가 없어 찾던 중 chazzy를 발견하게 되었고,
+감사하게도 오픈소스로 열어주셔서 부족한 실력이지만 합방용 통합채팅창으로 만들어보았습니다.
 
-Multi-platform streaming chat overlay that aggregates real-time chat from Chzzk (치지직), Twitch, AfreecaTV/Soop (숲), and YouTube.
+다만, 정말 기초도 없이 제미나이로 밤새 개발해서 소스코드를 다운받고 로컬환경에서 서버를 열어야 돌아갑니다.
 
-## Features
+혹시 문제가 있다면 알려주십시요.
+이메일: alsrnr7434@gmail.com
 
-- **Multi-Platform Support**: Display chat from 4 streaming platforms simultaneously
-- **Real-Time Updates**: Low-latency chat with WebSocket/SSE and smart batching
-- **Paid Chat Highlighting**: Special display for donations (Chzzk Cheese, YouTube Super Chat, Twitch Bits)
-- **Platform Badges**: Shows subscription tiers, moderator status, and achievements
-- **Real-Time Viewer Count**: Live viewer count updates for all platforms
-- **Responsive Design**: Optimized for OBS Browser Source and mobile viewing
-- **Auto-Reconnect**: Handles connection drops with exponential backoff
+-------------------------------
+1. 다운받은 폴더에서 명령프롬프트를 열고 npm run dev를 입력합니다.
+2. 크롬에 'localhost:3000/{chzzkId}-{chzzkId2}-{chzzkId3}`를 입력합니다.
+  2-1. 1명도 되고 여러명도 가능합니다.
+  2-2. chzzkId는 https://chzzk.naver.com/e809c1d76517f9f2bcd67e55de8adb72(제 채널입니다)에서 e809c1d76517f9f2bcd67e55de8adb72 이 부분을 말합니다.
+  2-3. 크롬에 'localhost:3000/e809c1d76517f9f2bcd67e55de8adb72'라고 입력하면 되고, 다른 스트리머를 추가하려면 뒤에 '-'와 또다른 chzzkId를 입력하면 됩니다.
+3. OBS에서 브라우저 소스를 입력하고 'localhost:3000/{chzzkId}-{chzzkId2}-{chzzkId3}`의 주소를 입력합니다.
+--------------------------------
+4. 3 까지는 개인스트리머 혹은 시청자가 여러 방송을 혼자 볼 때 쓰는 방법입니다.
+5. Cloudflare Tunnel 같은 프로그램으로 웹주소를 열어주면 다른 스트리머도 통합채팅을 이용가능 합니다.
 
-## Supported Platforms
 
-| Platform | Protocol | Features |
-|----------|----------|----------|
-| **Chzzk** (치지직) | JSON over WebSocket | Cheese donations, subscription badges, emoji parsing |
-| **Twitch** | IRC over WebSocket | Bits, global/broadcaster badges, emote positioning |
-| **AfreecaTV/Soop** (숲) | Binary WebSocket | Stickers, fan club badges, manager status |
-| **YouTube** | InnerTube API (SSE) | Super Chat/Stickers, membership badges, real-time viewer count |
-
-## Quick Start
-
-### Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run development server
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to see the landing page.
-
-### Using the Overlay
-
-Access the chat overlay via: `http://localhost:3000/{channelId}`
-
-**URL Format**: `/{chzzkId}-{twitchId}-{afreecatvId}-{youtubeVideoId}`
-
-Examples:
-```
-# Single platform
-http://localhost:3000/chzzkChannelId---
-http://localhost:3000/-twitchUsername--
-http://localhost:3000/--afreecatvId-
-http://localhost:3000/---youtubeVideoId
-
-# Multiple platforms
-http://localhost:3000/chzzkId-twitchName--
-http://localhost:3000/chzzkId--afreecatvId-
-http://localhost:3000/---youtubeVideoId
-http://localhost:3000/chzzkId-twitchName-afreecatvId-youtubeVideoId
-```
-
-**Note**: YouTube requires a **video ID** (from the live stream URL), not a channel ID.
-
-### Environment Variables
-
-For Twitch integration, create `.env.local`:
-
-```env
-NEXT_PUBLIC_TWITCH_CLIENT_ID=your_client_id
-NEXT_PUBLIC_TWITCH_ACCESS_TOKEN=your_access_token
-```
-
-## OBS Setup
-
-1. Add **Browser Source** in OBS
-2. Set URL to: `https://your-deployment-url.com/{channelId}`
-3. Recommended dimensions: 1920x1080
-4. Enable "Shutdown source when not visible" for better performance
-5. Check "Refresh browser when scene becomes active"
-
-## Project Structure
-
-```
-app/
-├── [channelId]/          # Dynamic overlay route
-│   ├── Chazzy.tsx        # Main component
-│   ├── ChatRow.tsx       # Regular chat display
-│   └── CheeseChatRow.tsx # Paid chat display
-├── chat/                 # Unified chat abstraction
-│   ├── types.ts          # Common Chat interface
-│   └── useMergedList.ts  # Multi-platform chat merger
-├── chzzk/                # Chzzk platform integration
-├── twitch/               # Twitch platform integration
-├── afreecatv/            # AfreecaTV/Soop integration
-└── youtube/              # YouTube platform integration
-```
-
-## Development
-
-### Build Commands
-
-```bash
-# Development server
-pnpm dev
-
-# Production build
-pnpm build
-
-# Start production server
-pnpm start
-
-# Lint code
-pnpm lint
-```
-
-### Tech Stack
-
-- **Framework**: Next.js 14 (App Router)
-- **Runtime**: React 18 with Hooks
-- **Language**: TypeScript 5
-- **Styling**: CSS with CSS Variables
-- **Real-Time**: WebSocket connections per platform
-- **UI**: @floating-ui/react for menu positioning
-- **Monitoring**: Sentry error tracking
-
-## Architecture
-
-### Message Processing Pipeline
-
-```
-Platform WebSocket → Parser → Unified Chat Type
-    ↓
-Pending List (useRef) → Smart Batching (useMergedList)
-    ↓
-React State → Memoized Components → UI
-```
-
-### Smart Batching
-
-The `useMergedList` hook optimizes performance:
-- **Fast messages**: Exponential batching (2→4→8→16 per cycle)
-- **Slow messages**: Release all pending messages at once (>1s gap)
-- **Sorting**: Maintains chronological order across platforms
-- **Capping**: Max 1000 regular chats, 10 paid chats
-
-### Performance Optimizations
-
-- Component memoization with `React.memo()`
-- Web Worker for WebSocket ping timers
-- Document hidden detection (pauses when tab inactive)
-- Ref-based pending lists (avoids re-renders during accumulation)
-- `reactStrictMode: false` to prevent double WebSocket connections
-
-## Platform Details
-
-### Chzzk (치지직)
-- WebSocket: `wss://kr-ss1.chat.naver.com/chat`
-- Requires access token from Chzzk API
-- Cheese tiers: 0 (gray), 1 (purple), 2 (green), 3 (gold), 4 (red)
-- Live status polling every 30 seconds
-
-### Twitch
-- WebSocket: `wss://irc-ws.chat.twitch.tv`
-- IRC protocol with tags parsing
-- Badge fetching from Twitch API
-- Requires Client ID and Access Token
-
-### AfreecaTV/Soop
-- Custom binary protocol with `%SF` start and `%EC` end delimiters
-- Bitwise flag parsing for message properties
-- Station metadata polling every 30 seconds
-- SVG badge icons in `public/afreecatv/`
-
-### YouTube
-- Client-side InnerTube API connection via `youtubei.js` library
-- No API key required (bypasses official YouTube Data API quota)
-- Custom proxy at `innertube.proxy.aioo.ooo` to bypass CORS
-- Event-driven architecture with `chat-update` and `metadata-update` listeners
-- Real-time viewer count via `metadata-update` events
-- Video metadata polling every 30 seconds
-
-## API Proxying
-
-Uses `aioo.ooo` proxy to bypass CORS:
-- Chzzk: `https://api.chzzk.naver.com.proxy.aioo.ooo`
-- AfreecaTV: `https://live.sooplive.co.kr.proxy.aioo.ooo`
-- YouTube InnerTube: `https://innertube.proxy.aioo.ooo`
-
-## Contributing
-
-See [CLAUDE.md](./CLAUDE.md) for detailed architecture documentation and development patterns.
-
-## Deployment
-
-Remember to set environment variables for Twitch integration in your deployment settings:
-- `NEXT_PUBLIC_TWITCH_CLIENT_ID`
-- `NEXT_PUBLIC_TWITCH_ACCESS_TOKEN`
+# 원본 코드:
+https://github.com/AiOO/chazzy?ref=blog.aioo.ooo
+AiOO님에게 무한한 감사를 보냅니다.
